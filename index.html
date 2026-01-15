@@ -6,8 +6,8 @@
 
     <link rel="icon" href="logo.png" type="image/png">
     
-    <meta name="description" content="Играйте в Судоку онлайн бесплатно. Сложные уровни 9x9 и режим Мастер 16x16. Тренируйте мозг без рекламы.">
-    <meta name="keywords" content="судоку, sudoku, головоломка, sudoku 16x16, играть онлайн, судоку бесплатно, тренировка мозга">
+    <meta name="description" content="Play Sudoku online for free. Difficult levels 9x9 and Master mode 16x16. Train your brain without ads.">
+    <meta name="keywords" content="sudoku, sudoku, puzzle, sudoku 16x16, play online, sudoku for free, brain training">
     <meta name="author" content="YourName/Studio">
     
     <meta name="mobile-web-app-capable" content="yes">
@@ -70,6 +70,7 @@
     h1 { font-size: 3rem; font-weight: 100; letter-spacing: 0.8rem; margin-bottom: 2rem; text-align: center; }
     .btn-group { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 280px; }
     .btn { 
+        color: #000;
         padding: 16px; 
         font-size: 15px; 
         font-weight: 600; 
@@ -318,7 +319,7 @@
         <button class="btn btn-primary" onclick="Game.init('master', 16)">Master 16x16</button>
         
             <button class="btn-exit" onclick="Leaderboard.open()" style="margin-top: 15px; font-size: 14px; color: var(--text);">
-            🏆 VIEW ALL RECORDS
+             VIEW ALL RECORDS
         </button>
     </div>
 </div>
@@ -600,4 +601,5 @@
 })();
 </script>
 </body>
+
 </html>
