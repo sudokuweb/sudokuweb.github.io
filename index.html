@@ -389,13 +389,25 @@
 (function() {
     "use strict";
 
-    // === 1. ЗАЩИТА И АНТИ-ЧИТ ===
+    // === 1. ЗАЩИТА И СИСТЕМА ПРОФИЛЯ ===
+    const User = {
+        id: localStorage.getItem('sudoku_user_id') || ('ID-' + Math.random().toString(36).substr(2, 9).toUpperCase()),
+        getName() { return localStorage.getItem('sudoku_username') || "Player"; },
+        init() {
+            localStorage.setItem('sudoku_user_id', this.id);
+            const input = document.getElementById('username-input');
+            const idDisp = document.getElementById('user-id-display');
+            if(input) {
+                input.value = this.getName();
+                input.oninput = (e) => localStorage.setItem('sudoku_username', e.target.value || "Player");
+            }
+            if(idDisp) idDisp.innerText = `MY ID: ${this.id}`;
+        }
+    };
+
     const secureInterval = setInterval(() => {
         (function() { return true; }).constructor("debugger")();
     }, 500);
-
-    console.log("%cSTOP!", "color: red; font-size: 50px; font-weight: bold;");
-    console.log("Консоль заблокирована для защиты таблицы рекордов.");
 
     // === 2. ГЕНЕРАТОР СУДОКУ ===
     const SudokuGen = {
@@ -416,17 +428,15 @@
                 for (let j = 0; j < boxSize; j++) this.grid[row+i][col+j] = nums[idx++];
         },
         getShuffledNums() {
-            const nums = Array.from({length: this.size}, (_, i) => i + 1);
-            return nums.sort(() => Math.random() - 0.5);
+            return Array.from({length: this.size}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
         },
         isSafe(row, col, num) {
             const boxSize = Math.sqrt(this.size);
             for (let x = 0; x < this.size; x++) 
                 if (this.grid[row][x] === num || this.grid[x][col] === num) return false;
-            const startRow = row - row % boxSize, startCol = col - col % boxSize;
+            const sR = row - row % boxSize, sC = col - col % boxSize;
             for (let i = 0; i < boxSize; i++) 
-                for (let j = 0; j < boxSize; j++) 
-                    if (this.grid[startRow+i][startCol+j] === num) return false;
+                for (let j = 0; j < boxSize; j++) if (this.grid[sR+i][sC+j] === num) return false;
             return true;
         },
         solve(row = 0, col = 0) {
@@ -443,57 +453,95 @@
             }
             return false;
         },
+        // НОВАЯ ЛОГИКА ОГРАНИЧЕНИЯ ЦИФР В КЛЕТКАХ 3х3 (или 4х4)
         pokeHoles(fullGrid, diff) {
-            let puzzle = JSON.parse(JSON.stringify(fullGrid));
-            let clues = this.size === 9 ? (diff === 'easy' ? 36 : diff === 'normal' ? 30 : 25) : 80;
-            let coords = [];
-            for(let r=0; r<this.size; r++) for(let c=0; c<this.size; c++) coords.push([r,c]);
-            coords.sort(() => Math.random() - 0.5);
-            for (let i = 0; i < (this.size * this.size) - clues; i++) puzzle[coords[i][0]][coords[i][1]] = 0;
+            const size = this.size;
+            const boxSize = Math.sqrt(size);
+            let puzzle = Array.from({length: size}, () => Array(size).fill(0));
+            
+            let maxPerBox;
+            if (size === 9) {
+                if (diff === 'easy') maxPerBox = 5;
+                else if (diff === 'normal') maxPerBox = 4;
+                else maxPerBox = 3; // hard
+            } else {
+                maxPerBox = 6; // master 16x16
+            }
+
+            for (let bR = 0; bR < size; bR += boxSize) {
+                for (let bC = 0; bC < size; bC += boxSize) {
+                    let boxCells = [];
+                    for (let r = 0; r < boxSize; r++) {
+                        for (let c = 0; c < boxSize; c++) {
+                            boxCells.push({r: bR + r, c: bC + c});
+                        }
+                    }
+                    boxCells.sort(() => Math.random() - 0.5);
+                    // Оставляем только разрешенное количество цифр в блоке
+                    for (let i = 0; i < maxPerBox; i++) {
+                        let cell = boxCells[i];
+                        puzzle[cell.r][cell.c] = fullGrid[cell.r][cell.c];
+                    }
+                }
+            }
             return puzzle;
         }
     };
 
-    // === 3. ТАБЛИЦА РЕКОРДОВ (TOP 5) ===
+    // === 3. ТАБЛИЦА РЕКОРДОВ (ЛУЧШИЕ 5 С ОШИБКАМИ) ===
     const Leaderboard = {
         save(diff, time, mistakes) {
-            let data = JSON.parse(localStorage.getItem('sudoku_records') || '[]');
-            data.push({ diff, time, mistakes, date: new Date().toLocaleDateString() });
+            let data = JSON.parse(localStorage.getItem('sudoku_records_v2') || '[]');
+            data.push({ 
+                diff, time, mistakes, 
+                userName: User.getName(), 
+                userId: User.id, 
+                date: new Date().toLocaleDateString() 
+            });
             
-            // Фильтруем ТОП-5 для каждого уровня
             let filtered = [];
-            ['EASY', 'NORMAL', 'HARD', 'MASTER'].forEach(cat => {
+            ['EASY', 'NORMAL', 'HARD', 'MASTER 16X16'].forEach(cat => {
                 let catData = data.filter(i => i.diff === cat)
-                                  .sort((a, b) => a.time - b.time)
+                                  .sort((a, b) => a.time - b.time) // Сортировка по времени (быстрее = лучше)
                                   .slice(0, 5);
                 filtered = filtered.concat(catData);
             });
-            localStorage.setItem('sudoku_records', JSON.stringify(filtered));
+            localStorage.setItem('sudoku_records_v2', JSON.stringify(filtered));
         },
         open() {
-    const data = JSON.parse(localStorage.getItem('sudoku_records') || '[]');
-    ['easy', 'normal', 'hard', 'master'].forEach(d => {
-        const cont = document.getElementById(`list-${d}`);
-        if (!cont) return;
-        const items = data.filter(i => i.diff === d.toUpperCase());
-        cont.innerHTML = items.length ? items.map((e, i) => `
-                    <div class="score-entry">
-                        <span>#${i+1} — ${e.date}</span>
-                        <span class="score-time">${Math.floor(e.time/60)}:${(e.time%60).toString().padStart(2,'0')}</span>
-                    </div>`).join('') : '<div style="color:#ccc; font-size:12px">No records</div>';
-    });
-    Game.changeScreen('scores-page');
-}
+            const data = JSON.parse(localStorage.getItem('sudoku_records_v2') || '[]');
+            const categories = ['easy', 'normal', 'hard', 'master'];
+            
+            categories.forEach(d => {
+                const cont = document.getElementById(`list-${d}`);
+                if (!cont) return;
+                const catLabel = d === 'master' ? 'MASTER 16X16' : d.toUpperCase();
+                const items = data.filter(i => i.diff === catLabel);
+                
+                cont.innerHTML = items.length ? items.map((e, i) => `
+                    <div class="score-entry" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                        <div style="text-align: left;">
+                            <div style="font-weight: bold; font-size: 13px;">${e.userName}</div>
+                            <div style="font-size: 9px; color: #999;">${e.userId}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: bold; color: #2ecc71;">${Math.floor(e.time/60)}:${(e.time%60).toString().padStart(2,'0')}</div>
+                            <div style="font-size: 10px; color: #e74c3c;">Mistakes: ${e.mistakes}</div>
+                        </div>
+                    </div>`).join('') : '<div style="color:#ccc; font-size:11px; padding: 10px;">No records</div>';
+            });
+            Game.changeScreen('scores-page');
+        }
     };
 
-    // === ИГРА ===
+    // === 4. ЛОГИКА ИГРЫ ===
     const Game = {
         size: 9, selected: null, mistakes: 0, timer: 0, ti: null, solution: [],
         symbols16: ['1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G'],
 
         init(diff, size) {
             this.size = size; this.mistakes = 0; this.timer = 0; this.selected = null;
-            document.getElementById('label-diff').innerText = diff.toUpperCase();
+            document.getElementById('label-diff').innerText = (size === 16 ? "MASTER 16X16" : diff.toUpperCase());
             document.getElementById('mistakes').innerText = "0/3";
             this.changeScreen('game');
             setTimeout(() => {
@@ -578,11 +626,11 @@
             if ([...cells].every(c => c.innerText !== '' && !c.classList.contains('wrong'))) this.end(true);
         },
         end(win) {
-    clearInterval(this.ti);
+            clearInterval(this.ti);
             if (win) Leaderboard.save(document.getElementById('label-diff').innerText, this.timer, this.mistakes);
-    document.getElementById('res-title').innerText = win ? "VICTORY" : "GAME OVER";
+            document.getElementById('res-title').innerText = win ? "VICTORY" : "GAME OVER";
             document.getElementById('res-time').innerText = document.getElementById('timer').innerText;
-    this.changeScreen('results');
+            this.changeScreen('results');
         },
         changeScreen(id) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -592,14 +640,16 @@
         format(n) { return this.size === 16 ? this.symbols16[n-1] : n.toString(); }
     };
 
-    // === 5. ЭКСПОРТ ДЛЯ HTML ===
     window.Game = Game;
     window.Leaderboard = Leaderboard;
 
-    // Инициализация отображения
-    window.onload = () => { if(document.getElementById('list-easy')) Leaderboard.open(); Game.changeScreen('menu'); };
+    window.onload = () => { 
+        User.init();
+        Game.changeScreen('menu'); 
+    };
 })();
 </script>
 </body>
 
 </html>
+
