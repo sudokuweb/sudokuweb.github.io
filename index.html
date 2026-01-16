@@ -81,7 +81,7 @@
 
     .btn-exit {
         color: #000;
-        padding: 10px 16px; 
+        padding: 15px 16px; 
         font-size: 15px; 
         font-weight: 600; 
         text-transform: uppercase; 
@@ -235,7 +235,7 @@
         color: #95a5a6;
     }
 
-.key:active {
+.key:active, .key.active {
     background: var(--accent) !important;
     color: white !important;
     transform: scale(0.9);
@@ -550,18 +550,44 @@
         },
         select(cell) {
             document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected', 'highlight', 'highlight-same'));
-            this.selected = cell; cell.classList.add('selected');
-            const idx = parseInt(cell.dataset.idx), r = Math.floor(idx/this.size), c = idx%this.size;
+            this.selected = cell; 
+            cell.classList.add('selected');
+            
+            const idx = parseInt(cell.dataset.idx);
+            const r = Math.floor(idx / this.size);
+            const c = idx % this.size;
+            const cellValue = cell.innerText;
+
             document.querySelectorAll('.cell').forEach(ce => {
-                const ci = ce.dataset.idx, cr = Math.floor(ci/this.size), cc = ci%this.size;
-                if(cr === r || cc === c) ce.classList.add('highlight');
-                if(ce.innerText && ce.innerText === cell.innerText) ce.classList.add('highlight-same');
+                const ci = parseInt(ce.dataset.idx);
+                const cr = Math.floor(ci / this.size);
+                const cc = ci % this.size;
+                
+                if(cr === r || cc === c) {
+                    ce.classList.add('highlight');
+                }
+                
+                if(cellValue && ce.innerText === cellValue) {
+                    ce.classList.add('highlight-same');
+                }
             });
         },
         input(char) {
-            if (!this.selected || this.selected.classList.contains('fixed')) return;
-            const idx = this.selected.dataset.idx, r = Math.floor(idx/this.size), c = idx%this.size;
-            if (char === this.format(this.solution[r][c])) {
+            if (!this.selected || (this.selected.classList.contains('fixed') && !this.selected.classList.contains('wrong'))) return;
+
+            document.querySelectorAll('.cell.wrong').forEach(cell => {
+                if (cell !== this.selected) {
+                    cell.innerText = '';
+                    cell.classList.remove('wrong');
+                }
+            });
+
+            const idx = this.selected.dataset.idx;
+            const r = Math.floor(idx / this.size);
+            const c = idx % this.size;
+            const correctValue = this.format(this.solution[r][c]);
+
+            if (char === correctValue) {
                 this.selected.innerText = char;
                 this.selected.classList.add('fixed');
                 this.selected.classList.remove('wrong');
@@ -574,11 +600,12 @@
                 this.selected.classList.add('wrong');
                 if (this.mistakes >= 3) this.end(false);
             }
+            
+            this.select(this.selected);
         },
 updateCounters() {
     const counts = {};
     document.querySelectorAll('.cell').forEach(c => {
-        // Считаем только правильно заполненные или предустановленные цифры
         if(c.innerText && !c.classList.contains('wrong')) {
             counts[c.innerText] = (counts[c.innerText] || 0) + 1;
         }
@@ -586,7 +613,6 @@ updateCounters() {
 
     const keys = document.querySelectorAll('.key');
     keys.forEach(key => {
-        // Более надежный способ получить символ кнопки
         const val = key.firstChild.textContent.trim(); 
         const elCount = key.querySelector('.count');
         
@@ -594,7 +620,6 @@ updateCounters() {
         
         if(elCount) elCount.innerText = remaining;
 
-        // Если цифры закончились — кнопка "тухнет"
         if (remaining === 0) {
             key.classList.add('done');
         } else {
@@ -669,6 +694,35 @@ async download() {
     window.Leaderboard = Leaderboard;
     window.onload = () => { User.init(); Game.changeScreen('menu'); };
 })();
+document.addEventListener('keydown', (e) => {
+        const key = e.key.toUpperCase();
+
+        if (key === 'ESCAPE') {
+            if (document.getElementById('scores-page').classList.contains('active')) {
+                Game.changeScreen('menu');
+            } else if (document.getElementById('game').classList.contains('active')) {
+                Game.showMenu();
+            }
+            return;
+        }
+
+        if (document.getElementById('game').classList.contains('active')) {
+            const isValid = (Game.size === 9 && /^[1-9]$/.test(key)) || 
+                          (Game.size === 16 && Game.symbols16.includes(key));
+
+            if (isValid) {
+                Game.input(key);
+
+                const keys = document.querySelectorAll('.key');
+                keys.forEach(k => {
+                    if (k.firstChild.textContent.trim() === key) {
+                        k.classList.add('active');
+                        setTimeout(() => k.classList.remove('active'), 100);
+                    }
+                });
+            }
+        }
+    });
 </script>
 </body>
 </html>
